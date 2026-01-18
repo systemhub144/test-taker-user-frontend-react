@@ -5,9 +5,61 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+  background-color: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+/* Поддержка для узбекского языка и кириллицы */
+@font-face {
+  font-family: 'Arial-Cyrillic';
+  src: local('Arial'), local('Helvetica');
+  unicode-range: U+0400-04FF, U+0500-052F;
+}
+
+* {
+  font-family: 'Arial', 'Arial-Cyrillic', sans-serif;
+}
+
+/* Стили для скроллбара */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #764ba2;
+}
+
+/* Стили для выделения текста */
+::selection {
+  background: rgba(102, 126, 234, 0.3);
+  color: #333;
+}
+
+/* Стили для фокуса */
+:focus {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+/* Стили для disabled элементов */
+:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }

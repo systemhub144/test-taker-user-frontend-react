@@ -67,6 +67,23 @@ body {
   border-color: #667eea;
 }
 
+/* Стили для валидации */
+.form-group.has-error .form-control {
+  border-color: #dc3545;
+  background-color: #fff8f8;
+}
+
+.form-group.has-error .form-control:focus {
+  border-color: #dc3545;
+}
+
+.validation-error {
+  color: #dc3545;
+  font-size: 0.9rem;
+  margin-top: 5px;
+  display: block;
+}
+
 .btn {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -75,7 +92,7 @@ body {
   border-radius: 8px;
   font-size: 1.1rem;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
   width: 100%;
   font-weight: bold;
 }
@@ -86,6 +103,16 @@ body {
 
 .btn:active {
   transform: translateY(0);
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn:disabled:hover {
+  transform: none;
 }
 
 .user-info {
@@ -117,6 +144,8 @@ body {
   padding: 25px;
   border-radius: 10px;
   margin-bottom: 25px;
+  border-left: 5px solid #ddd;
+  transition: border-color 0.3s ease;
 }
 
 .question-number {
@@ -183,44 +212,6 @@ body {
   100% { transform: rotate(360deg); }
 }
 
-@media (max-width: 768px) {
-  body {
-    padding: 10px;
-  }
-  
-  .container {
-    padding: 20px;
-  }
-  
-  .header h1 {
-    font-size: 1.6rem;
-  }
-  
-  .header h2 {
-    font-size: 1.3rem;
-  }
-  
-  .timer {
-    font-size: 1.1rem;
-    padding: 8px 16px;
-  }
-}
-
-@media (max-width: 480px) {
-  .header h1 {
-    font-size: 1.4rem;
-  }
-  
-  .form-control {
-    padding: 10px 12px;
-  }
-  
-  .btn {
-    padding: 12px 20px;
-    font-size: 1rem;
-  }
-}
-
 /* Стили для сетки вариантов ответов */
 .options-grid {
   display: grid;
@@ -275,14 +266,58 @@ body {
   font-size: 0.9rem;
 }
 
-/* Адаптивность для кнопок */
+/* Стили для отображения ошибок */
+.error-container {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Адаптивность */
 @media (max-width: 768px) {
+  body {
+    padding: 10px;
+  }
+  
+  .container {
+    padding: 20px;
+  }
+  
+  .header h1 {
+    font-size: 1.6rem;
+  }
+  
+  .header h2 {
+    font-size: 1.3rem;
+  }
+  
+  .timer {
+    font-size: 1.1rem;
+    padding: 8px 16px;
+  }
+  
   .options-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 480px) {
+  .header h1 {
+    font-size: 1.4rem;
+  }
+  
+  .form-control {
+    padding: 10px 12px;
+  }
+  
+  .btn {
+    padding: 12px 20px;
+    font-size: 1rem;
+  }
+  
   .options-grid {
     grid-template-columns: 1fr;
   }
@@ -291,4 +326,19 @@ body {
     padding: 12px;
     font-size: 1.1rem;
   }
+}
+
+/* Стили для модальных окон */
+.confirmation-modal {
+  backdrop-filter: blur(5px);
+}
+
+.warning-message {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
 }

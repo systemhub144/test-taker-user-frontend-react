@@ -1,494 +1,548 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MathInput from 'react-math-keyboard';
+import ErrorDisplay from '../components/ErrorDisplay';
+import './TestPage.css';
 
-const TestPage = ({ userData, testData, answers, setAnswers, onSubmit, loading }) => {
+const TestPage = ({ userData, testData, answers, setAnswers, onSubmit, loading, userId }) => {
   const [timeLeft, setTimeLeft] = useState(testData.minutes * 60);
-  const [startTime] = useState(new Date().toISOString());
+  const [startTime] = useState(() => new Date().toISOString());
   const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [showTimeWarning, setShowTimeWarning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const navigate = useNavigate();
 
-  const totalQuestions = (testData.close_questions || 0) + (testData.open_questions || 0);
-  const closeQuestionsCount = testData.close_questions || 0;
-  const openQuestionsCount = testData.open_questions || 0;
+  const totalQuestions = useMemo(() => 
+    (testData.close_questions || 0) + (testData.open_questions || 0), 
+    [testData]
+  );
+  
+  const closeQuestionsCount = useMemo(() => testData.close_questions || 0, [testData]);
+  const openQuestionsCount = useMemo(() => testData.open_questions || 0, [testData]);
 
-  // Используем ref для стабильного доступа к ответам
+  // Ref для стабильного доступа к ответам
   const answersRef = useRef(answers);
   const setAnswersRef = useRef(setAnswers);
   
-  // Инициализируем refs при первом рендере
+  // Инициализация refs
   useEffect(() => {
     answersRef.current = answers;
     setAnswersRef.current = setAnswers;
   }, []);
 
-  // Синхронизируем ref с текущими ответами
+  // Синхронизация ref с ответами
   useEffect(() => {
     answersRef.current = answers;
-    console.log('🔄 Answers updated in ref:', answers);
   }, [answers]);
 
   // Таймер
   useEffect(() => {
-    if (timeLeft > 0) {
-      const timer = setTimeout(() => {
-        setTimeLeft(timeLeft - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
+    if (timeLeft <= 0) {
+      handleAutoSubmit();
+      return;
     }
+
+    const timerId = setTimeout(() => {
+      setTimeLeft(prev => {
+        const newTime = prev - 1;
+        
+        // Показываем предупреждения
+        if (newTime === 300) { // 5 минут
+          setShowTimeWarning(true);
+          setTimeout(() => setShowTimeWarning(false), 5000);
+        } else if (newTime === 60) { // 1 минута
+          setShowTimeWarning(true);
+          setTimeout(() => setShowTimeWarning(false), 5000);
+        }
+        
+        return newTime;
+      });
+    }, 1000);
+
+    return () => clearTimeout(timerId);
   }, [timeLeft]);
 
-  const formatTime = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Создаем стабильные обработчики для MathInput
-  const createMathInputHandler = useCallback((questionIndex) => {
-    // Возвращаем стабильную функцию, которая не меняется при ререндерах
-    return (latexString) => {
-      console.log(`📝 Open question ${questionIndex + 1}: entered ${latexString || 'empty'}`);
-      
-      // Используем функциональное обновление для сохранения всех предыдущих ответов
-      setAnswersRef.current(prevAnswers => {
-        const newAnswers = [...prevAnswers];
-        newAnswers[questionIndex] = latexString || 'None';
-        console.log('📊 Updated answers array (from ref):', newAnswers);
-        
-        // Также обновляем ref
-        answersRef.current = newAnswers;
-        return newAnswers;
-      });
-    };
-  }, []);
-
-  // Используем мемоизированные обработчики для MathInput
-  const mathInputHandlers = useRef({});
-  
-  const getMathInputHandler = useCallback((questionIndex) => {
-    if (!mathInputHandlers.current[questionIndex]) {
-      mathInputHandlers.current[questionIndex] = createMathInputHandler(questionIndex);
-    }
-    return mathInputHandlers.current[questionIndex];
-  }, [createMathInputHandler]);
-
-  // Обработчик для закрытых вопросов
-  const handleOptionSelect = useCallback((questionIndex, option) => {
-    console.log(`❓ Closed question ${questionIndex + 1}: selected ${option}`);
+  // Автоматическая отправка при истечении времени
+  const handleAutoSubmit = useCallback(async () => {
+    if (isSubmitting) return;
     
-    // Используем функциональное обновление
-    setAnswers(prevAnswers => {
-      const newAnswers = [...prevAnswers];
-      newAnswers[questionIndex] = option;
-      console.log('📊 Updated answers (closed question):', newAnswers);
-      
-      // Обновляем ref
-      answersRef.current = newAnswers;
-      return newAnswers;
-    });
-  }, []);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log('📝 Submit form triggered');
+    setIsSubmitting(true);
+    console.log('⏰ Auto-submitting test due to time expiration');
     
     const endTime = new Date().toISOString();
     const answersToSend = answersRef.current.map(answer => 
       answer === '' || answer === null || answer === undefined ? 'None' : answer
     );
     
-    // Проверяем, сколько вопросов не отвечено
-    const unansweredCount = answersToSend.filter(answer => answer === 'None').length;
+    const result = await onSubmit(answersToSend, startTime, endTime);
+    
+    if (result.success) {
+      navigate('/results');
+    } else {
+      setSubmitError({
+        type: 'warning',
+        title: 'Vaqt tugadi',
+        message: 'Test avtomatik ravishda yakunlandi',
+        details: 'Javoblaringiz lokal saqlandi. Keyinroq qayta urinib ko\'ring.'
+      });
+    }
+    
+    setIsSubmitting(false);
+  }, [onSubmit, startTime, navigate, isSubmitting]);
+
+  // Форматирование времени
+  const formatTime = useCallback((seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }, []);
+
+  // Обновление ответов
+  const updateAnswer = useCallback((questionIndex, value) => {
+    setAnswersRef.current(prev => {
+      const newAnswers = [...prev];
+      newAnswers[questionIndex] = value || 'None';
+      answersRef.current = newAnswers;
+      return newAnswers;
+    });
+  }, []);
+
+  // Обработчики для закрытых вопросов
+  const handleOptionSelect = useCallback((questionIndex, option) => {
+    updateAnswer(questionIndex, option);
+  }, [updateAnswer]);
+
+  // Обработчики для MathInput (создаются один раз)
+  const mathInputHandlersRef = useRef({});
+  
+  const getMathInputHandler = useCallback((questionIndex) => {
+    if (!mathInputHandlersRef.current[questionIndex]) {
+      mathInputHandlersRef.current[questionIndex] = (latexString) => {
+        updateAnswer(questionIndex, latexString);
+      };
+    }
+    return mathInputHandlersRef.current[questionIndex];
+  }, [updateAnswer]);
+
+  // Ручная отправка теста
+  const handleManualSubmit = async (e) => {
+    if (e) e.preventDefault();
+    
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    setSubmitError(null);
+    
+    const unansweredCount = answersRef.current.filter(answer => 
+      answer === 'None' || answer === '' || answer === null || answer === undefined
+    ).length;
     
     if (unansweredCount > 0) {
-      if (!window.confirm(`${unansweredCount} ta savolga javob berilmagan. Testni yakunlashni istaysizmi?`)) {
+      const confirmMessage = `${unansweredCount} ta savolga javob berilmagan. Testni yakunlashni istaysizmi?`;
+      
+      if (!window.confirm(confirmMessage)) {
+        setIsSubmitting(false);
         return;
       }
     }
     
-    console.log('🚀 Sending answers:', {
-      answers: answersToSend,
-      startTime,
-      endTime
-    });
+    const endTime = new Date().toISOString();
+    const answersToSend = answersRef.current.map(answer => 
+      answer === '' || answer === null || answer === undefined ? 'None' : answer
+    );
     
-    onSubmit(answersToSend, startTime, endTime);
-    navigate('/results');
+    console.log('📤 Manually submitting test...');
+    const result = await onSubmit(answersToSend, startTime, endTime);
+    
+    if (result.success) {
+      navigate('/results');
+    } else {
+      setSubmitError({
+        type: 'error',
+        title: 'Yuborishda xatolik',
+        message: 'Javoblaringiz yuborilmadi',
+        details: result.error || 'Iltimos, internet aloqasini tekshiring va qayta urinib ko\'ring.'
+      });
+    }
+    
+    setIsSubmitting(false);
   };
 
-  // Функция для переключения вопросов
-  const nextQuestion = () => {
+  // Навигация по вопросам
+  const nextQuestion = useCallback(() => {
     if (currentQuestion < totalQuestions - 1) {
-      setCurrentQuestion(currentQuestion + 1);
+      setCurrentQuestion(prev => prev + 1);
     }
-  };
+  }, [currentQuestion, totalQuestions]);
 
-  const prevQuestion = () => {
+  const prevQuestion = useCallback(() => {
     if (currentQuestion > 0) {
-      setCurrentQuestion(currentQuestion - 1);
+      setCurrentQuestion(prev => prev - 1);
     }
-  };
+  }, [currentQuestion]);
 
-  // Функция для заполнения тестовыми ответами
-  const fillTestAnswers = () => {
-    const currentAnswers = [...answersRef.current];
-    const options = ['A', 'B', 'C', 'D', 'E', 'F'];
-    
-    // Заполняем закрытые вопросы
-    for (let i = 0; i < closeQuestionsCount; i++) {
-      currentAnswers[i] = options[Math.floor(Math.random() * options.length)];
+  // Переход к конкретному вопросу
+  const goToQuestion = useCallback((index) => {
+    if (index >= 0 && index < totalQuestions) {
+      setCurrentQuestion(index);
     }
-    
-    // Заполняем открытые вопросы
-    const formulas = ['x^2 + y^2 = z^2', '\\frac{a}{b}', '\\sqrt{x}', '\\sum_{i=1}^{n} i^2'];
-    for (let i = closeQuestionsCount; i < totalQuestions; i++) {
-      currentAnswers[i] = formulas[Math.floor(Math.random() * formulas.length)];
+  }, [totalQuestions]);
+
+  // Восстановление сессии
+  const restoreSession = useCallback(() => {
+    try {
+      const savedState = localStorage.getItem('test_session');
+      if (savedState) {
+        const { answers: savedAnswers, timestamp } = JSON.parse(savedState);
+        
+        // Проверяем, не устарели ли данные (больше 24 часов)
+        const saveTime = new Date(timestamp);
+        const now = new Date();
+        const hoursDiff = (now - saveTime) / (1000 * 60 * 60);
+        
+        if (hoursDiff < 24) {
+          if (window.confirm('Saqqlangan javoblaringiz bor. Davom ettirishni istaysizmi?')) {
+            setAnswers(savedAnswers);
+            answersRef.current = savedAnswers;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to restore session:', error);
     }
-    
-    setAnswers(currentAnswers);
-    answersRef.current = currentAnswers;
-    console.log('🎲 Test answers filled:', currentAnswers);
-  };
+  }, [setAnswers]);
 
-  // Функция для просмотра структуры ответов
-  const viewAnswerStructure = () => {
-    const currentAnswers = answersRef.current;
-    const structure = {
-      totalQuestions,
-      closeQuestions: closeQuestionsCount,
-      openQuestions: openQuestionsCount,
-      answers: currentAnswers.map((answer, index) => ({
-        question: index + 1,
-        type: index < closeQuestionsCount ? 'closed' : 'open',
-        answer: answer === 'None' ? 'Not answered' : answer,
-        index: index
-      }))
-    };
-    
-    console.log('📋 Answer structure:', structure);
-    
-    alert(`Javoblar tuzilishi:
-Jami savollar: ${totalQuestions}
-Yopiq savollar: ${closeQuestionsCount}
-Ochiq savollar: ${openQuestionsCount}
-Javob berilgan: ${answeredCount}
-Javob berilmagan: ${totalQuestions - answeredCount}
+  // Сохранение сессии
+  const saveSession = useCallback(() => {
+    try {
+      const sessionData = {
+        answers: answersRef.current,
+        testData,
+        currentQuestion,
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem('test_session', JSON.stringify(sessionData));
+    } catch (error) {
+      console.error('Failed to save session:', error);
+    }
+  }, [testData, currentQuestion]);
 
-Tafsilotlar uchun konsolni tekshiring (F12)`);
-  };
+  // Автосохранение при изменении ответов
+  useEffect(() => {
+    saveSession();
+  }, [answers, saveSession]);
 
-  // Вычисляем прогресс
-  const answeredCount = answers.filter(answer => answer !== 'None' && answer !== '' && answer !== null).length;
-  const progressPercentage = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
+  // Восстановление при загрузке
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
 
-  // Определяем, какой тип вопроса сейчас активен
-  const isClosedQuestion = currentQuestion < closeQuestionsCount;
-  const currentQuestionIndex = isClosedQuestion ? currentQuestion : currentQuestion - closeQuestionsCount;
+  // Вычисление прогресса
+  const answeredCount = useMemo(() => 
+    answers.filter(answer => 
+      answer !== 'None' && answer !== '' && answer !== null && answer !== undefined
+    ).length,
+    [answers]
+  );
   
-  // Создаем компоненты для каждого вопроса
-  const closedQuestions = Array.from({ length: closeQuestionsCount }).map((_, index) => {
-    const questionIndex = index;
-    return (
-      <div 
-        key={`closed-${questionIndex}`} 
-        className="Question-card"
-        style={{ display: currentQuestion === questionIndex ? 'block' : 'none' }}
-      >
-        <div className="Question-number">
-          {questionIndex + 1}. Javobingizni belgilang
-        </div>
-        
-        <div className="Options-grid">
-          {['A', 'B', 'C', 'D', 'E', 'F'].map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={`Option-button ${answers[questionIndex] === option ? 'selected' : ''}`}
-              onClick={() => handleOptionSelect(questionIndex, option)}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+  const progressPercentage = useMemo(() => 
+    totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0,
+    [answeredCount, totalQuestions]
+  );
 
-        {answers[questionIndex] && answers[questionIndex] !== 'None' && (
-          <div style={{ 
-            backgroundColor: '#e8f5e9', 
-            padding: '12px', 
-            borderRadius: '8px', 
-            marginTop: '15px',
-            color: '#2e7d32',
-            fontSize: '14px'
-          }}>
-            <strong>Tanlangan javob:</strong> {answers[questionIndex]}
-          </div>
-        )}
+  // Стиль таймера в зависимости от оставшегося времени
+  const timerStyle = useMemo(() => {
+    if (timeLeft < 300) return { background: '#ff4757', color: 'white' };
+    if (timeLeft < 600) return { background: '#ffa502', color: 'white' };
+    return { background: '#2ecc71', color: 'white' };
+  }, [timeLeft]);
+
+  // Предупреждение о времени
+  if (showTimeWarning) {
+    return (
+      <div className="time-warning-overlay">
+        <div className="time-warning-content">
+          <div className="time-warning-icon">⚠️</div>
+          <h3>Vaqt kam qoldi!</h3>
+          <p>Qolgan vaqt: {formatTime(timeLeft)}</p>
+          <button 
+            className="time-warning-button"
+            onClick={() => setShowTimeWarning(false)}
+          >
+            Davom etish
+          </button>
+        </div>
       </div>
     );
-  });
-
-  const openQuestions = Array.from({ length: openQuestionsCount }).map((_, index) => {
-    const questionIndex = closeQuestionsCount + index;
-    // Получаем стабильный обработчик для этого MathInput
-    const mathInputHandler = getMathInputHandler(questionIndex);
-    
-    return (
-      <div 
-        key={`open-${questionIndex}`} 
-        className="Question-card"
-        style={{ display: currentQuestion === questionIndex ? 'block' : 'none' }}
-      >
-        <div className="Question-number">
-          {questionIndex + 1}. Javobingizni yozing
-        </div>
-        
-        <div className="Math-container">
-          <MathInput 
-            setValue={mathInputHandler}
-            initialLatex={answers[questionIndex] !== 'None' ? answers[questionIndex] : ''}
-          />
-        </div>
-
-        {answers[questionIndex] && answers[questionIndex] !== 'None' && (
-          <div style={{ 
-            backgroundColor: '#e3f2fd', 
-            padding: '12px', 
-            borderRadius: '8px', 
-            marginTop: '15px',
-            color: '#1565c0',
-            fontSize: '14px'
-          }}>
-            <strong>Joriy javob:</strong> 
-            <div style={{ 
-              fontFamily: 'monospace', 
-              marginTop: '5px',
-              wordBreak: 'break-all'
-            }}>
-              {answers[questionIndex]}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  });
+  }
 
   return (
-    <div className="App-container">
-      <div className="Title">
-        <h1>TEST</h1>
-      </div>
-      
-      <div className="Subtitle">
-        <h2>{userData.firstName} {userData.lastName}</h2>
+    <div className="app-container">
+      {/* Заголовок */}
+      <div className="header-section">
+        <h1 className="main-title">TEST BOSQICHI</h1>
+        <h2 className="sub-title">
+          {userData.firstName} {userData.lastName} | {testData.test_name}
+        </h2>
       </div>
 
-      {/* Информация о тесте */}
-      <div className="Info-box">
-        <div className="Info-item">
-          <span className="Info-label">Test nomi:</span> {testData.test_name}
-        </div>
-        <div className="Info-item">
-          <span className="Info-label">Savollar:</span> {totalQuestions} ta
-        </div>
-        <div className="Info-item">
-          <span className="Info-label">Yopiq savollar:</span> {closeQuestionsCount} ta
-        </div>
-        <div className="Info-item">
-          <span className="Info-label">Ochiq savollar:</span> {openQuestionsCount} ta
-        </div>
-        <div className="Info-item">
-          <span className="Info-label">Javob berilgan:</span> {answeredCount} ta
-        </div>
-        <div className="Info-item">
-          <span className="Info-label">Joriy savol:</span> {currentQuestion + 1}/{totalQuestions}
+      {/* Информационная панель */}
+      <div className="test-info-panel">
+        <div className="info-grid">
+          <div className="info-item">
+            <span className="info-label">Test kodi:</span>
+            <span className="info-value code-font">{testData.test_id}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">User ID:</span>
+            <span className="info-value code-font">{userId}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Savollar:</span>
+            <span className="info-value">{totalQuestions} ta</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Javob berilgan:</span>
+            <span className="info-value">
+              <span className={answeredCount === totalQuestions ? 'all-answered' : ''}>
+                {answeredCount}/{totalQuestions}
+              </span>
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Таймер */}
-      <div className="Timer-container">
-        <div className="Timer-label">Qolgan vaqt</div>
-        <div className="Timer-value">{formatTime(timeLeft)}</div>
+      <div className="timer-card" style={timerStyle}>
+        <div className="timer-label">QOLGAN VAQT</div>
+        <div className="timer-value">{formatTime(timeLeft)}</div>
+        <div className="timer-note">
+          {timeLeft < 600 ? '⚠️ Vaqt tez tugamoqda!' : '⏰ Davom eting...'}
+        </div>
       </div>
 
-      {/* Прогресс бар */}
-      <div style={{ 
-        width: '100%', 
-        backgroundColor: '#e8e8e8', 
-        borderRadius: '10px', 
-        margin: '20px 0' 
-      }}>
-        <div style={{ 
-          width: `${progressPercentage}%`, 
-          backgroundColor: '#4b3ee1', 
-          height: '10px', 
-          borderRadius: '10px',
-          transition: 'width 0.3s ease'
-        }}></div>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          marginTop: '8px', 
-          fontSize: '14px', 
-          color: '#787878' 
-        }}>
-          <span>Javob berilgan: {answeredCount}/{totalQuestions}</span>
-          <span>{progressPercentage}%</span>
+      {/* Прогресс-бар */}
+      <div className="progress-section">
+        <div className="progress-bar">
+          <div 
+            className="progress-fill" 
+            style={{ width: `${progressPercentage}%` }}
+          ></div>
+        </div>
+        <div className="progress-info">
+          <span>Progress: {progressPercentage}%</span>
+          <span>Savol {currentQuestion + 1}/{totalQuestions}</span>
         </div>
       </div>
 
       {/* Навигация по вопросам */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        width: '100%', 
-        marginBottom: '20px' 
-      }}>
+      <div className="question-navigation">
         <button 
+          className="nav-button prev-button"
           onClick={prevQuestion}
-          disabled={currentQuestion === 0}
-          style={{
-            backgroundColor: currentQuestion === 0 ? '#e8e8e8' : '#4b3ee1',
-            color: currentQuestion === 0 ? '#787878' : 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '10px 20px',
-            cursor: currentQuestion === 0 ? 'not-allowed' : 'pointer'
-          }}
+          disabled={currentQuestion === 0 || isSubmitting}
         >
           ← Oldingi
         </button>
         
-        <div style={{ fontWeight: '600', fontSize: '16px' }}>
-          Savol {currentQuestion + 1}/{totalQuestions}
+        <div className="question-counter">
+          Savol {currentQuestion + 1}
         </div>
         
         <button 
+          className="nav-button next-button"
           onClick={nextQuestion}
-          disabled={currentQuestion === totalQuestions - 1}
-          style={{
-            backgroundColor: currentQuestion === totalQuestions - 1 ? '#e8e8e8' : '#4b3ee1',
-            color: currentQuestion === totalQuestions - 1 ? '#787878' : 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '10px 20px',
-            cursor: currentQuestion === totalQuestions - 1 ? 'not-allowed' : 'pointer'
-          }}
+          disabled={currentQuestion === totalQuestions - 1 || isSubmitting}
         >
           Keyingi →
         </button>
       </div>
 
-      {/* Кнопки отладки */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '10px', 
-        marginBottom: '20px', 
-        width: '100%',
-        flexWrap: 'wrap' 
-      }}>
-        <button 
-          type="button"
-          onClick={fillTestAnswers}
-          style={{
-            backgroundColor: '#2196f3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '10px 15px',
-            cursor: 'pointer',
-            flex: 1,
-            fontSize: '14px'
-          }}
-        >
-          🎲 Test javoblarni to'ldirish
-        </button>
-        
-        <button 
-          type="button"
-          onClick={viewAnswerStructure}
-          style={{
-            backgroundColor: '#9c27b0',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '10px 15px',
-            cursor: 'pointer',
-            flex: 1,
-            fontSize: '14px'
-          }}
-        >
-          📋 Javoblar tuzilishi
-        </button>
-        
-        <button 
-          type="button"
-          onClick={() => {
-            // Очистить все ответы
-            if (window.confirm('Barcha javoblarni tozalashni istaysizmi?')) {
-              const newAnswers = new Array(totalQuestions).fill('None');
-              setAnswers(newAnswers);
-              answersRef.current = newAnswers;
-              console.log('🧹 All answers cleared');
-            }
-          }}
-          style={{
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '10px 15px',
-            cursor: 'pointer',
-            flex: 1,
-            fontSize: '14px'
-          }}
-        >
-          🧹 Barchasini tozalash
-        </button>
+      {/* Быстрая навигация по вопросам */}
+      <div className="quick-navigation">
+        <div className="quick-nav-label">Tezkor o'tish:</div>
+        <div className="quick-nav-buttons">
+          {Array.from({ length: totalQuestions }).map((_, index) => (
+            <button
+              key={index}
+              className={`quick-nav-button ${
+                currentQuestion === index ? 'active' : 
+                answers[index] !== 'None' ? 'answered' : 'unanswered'
+              }`}
+              onClick={() => goToQuestion(index)}
+              disabled={isSubmitting}
+              title={`Savol ${index + 1} - ${
+                answers[index] !== 'None' ? 'Javob berilgan' : 'Javob berilmagan'
+              }`}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} style={{ width: '100%' }}>
-        {/* Закрытые вопросы */}
-        {closedQuestions}
-        
-        {/* Открытые вопросы */}
-        {openQuestions}
+      {/* Ошибка отправки */}
+      {submitError && (
+        <div style={{ margin: '20px 0', width: '100%' }}>
+          <ErrorDisplay 
+            error={submitError}
+            onDismiss={() => setSubmitError(null)}
+          />
+        </div>
+      )}
 
-        {/* Кнопки управления */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '10px', 
-          marginTop: '30px',
-          flexWrap: 'wrap' 
-        }}>
-          <button 
-            type="submit" 
-            className="Button"
-            disabled={loading}
-            style={{ flex: 1 }}
+      <form onSubmit={handleManualSubmit} className="test-form">
+        {/* Закрытые вопросы */}
+        {Array.from({ length: closeQuestionsCount }).map((_, index) => (
+          <div 
+            key={`closed-${index}`}
+            className="question-card"
+            style={{ display: currentQuestion === index ? 'block' : 'none' }}
           >
-            {loading ? 'Yuborilmoqda...' : 'Testni yakunlash'}
+            <div className="question-header">
+              <span className="question-type-badge closed-badge">YOPIQ SAVOL</span>
+              <span className="question-number">Savol {index + 1}</span>
+            </div>
+            
+            <div className="question-prompt">
+              Quyidagi variantlardan to'g'ri javobni tanlang:
+            </div>
+            
+            <div className="options-grid">
+              {['A', 'B', 'C', 'D', 'E', 'F'].map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={`option-button ${
+                    answers[index] === option ? 'selected' : ''
+                  }`}
+                  onClick={() => handleOptionSelect(index, option)}
+                  disabled={isSubmitting}
+                >
+                  <span className="option-letter">{option}</span>
+                  <span className="option-text">Variant {option}</span>
+                </button>
+              ))}
+            </div>
+            
+            {answers[index] && answers[index] !== 'None' && (
+              <div className="selected-answer-display">
+                <span className="selected-label">Tanlangan javob:</span>
+                <span className="selected-value">{answers[index]}</span>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Открытые вопросы */}
+        {Array.from({ length: openQuestionsCount }).map((_, index) => {
+          const questionIndex = closeQuestionsCount + index;
+          const mathInputHandler = getMathInputHandler(questionIndex);
+          
+          return (
+            <div 
+              key={`open-${questionIndex}`}
+              className="question-card"
+              style={{ display: currentQuestion === questionIndex ? 'block' : 'none' }}
+            >
+              <div className="question-header">
+                <span className="question-type-badge open-badge">OCHIQ SAVOL</span>
+                <span className="question-number">Savol {questionIndex + 1}</span>
+              </div>
+              
+              <div className="question-prompt">
+                Quyidagi maydonga matematik ifodani kiriting:
+              </div>
+              
+              <div className="math-input-container">
+                <div className="math-input-header">
+                  <span>Matematik klaviatura:</span>
+                  <span className="math-help">ℹ️ Belgilarni tanlang yoki LaTeX formatida kiriting</span>
+                </div>
+                
+                <MathInput 
+                  setValue={mathInputHandler}
+                  initialLatex={answers[questionIndex] !== 'None' ? answers[questionIndex] : ''}
+                />
+                
+                <div className="math-input-footer">
+                  <button 
+                    type="button"
+                    className="clear-math-button"
+                    onClick={() => updateAnswer(questionIndex, 'None')}
+                    disabled={isSubmitting || !answers[questionIndex] || answers[questionIndex] === 'None'}
+                  >
+                    Tozalash
+                  </button>
+                </div>
+              </div>
+              
+              {answers[questionIndex] && answers[questionIndex] !== 'None' && (
+                <div className="math-preview">
+                  <div className="preview-label">Joriy javob:</div>
+                  <div className="preview-value code-font">{answers[questionIndex]}</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Панель управления */}
+        <div className="control-panel">
+          <button 
+            type="button"
+            className="control-button save-button"
+            onClick={saveSession}
+            disabled={isSubmitting}
+            title="Joriy holatni saqlash"
+          >
+            💾 Saqlash
+          </button>
+          
+          <button 
+            type="button"
+            className="control-button restore-button"
+            onClick={restoreSession}
+            disabled={isSubmitting}
+            title="Saqqlangan holatni tiklash"
+          >
+            ↩️ Tiklash
+          </button>
+          
+          <button 
+            type="submit"
+            className="control-button submit-button"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <span className="button-spinner"></span>
+                <span style={{ marginLeft: '10px' }}>Yuborilmoqda...</span>
+              </>
+            ) : (
+              '✅ Testni yakunlash'
+            )}
           </button>
         </div>
+        
+        <div className="form-note">
+          ⚠️ Diqqat: Testni yakunlaganingizdan so'ng javoblarni o'zgartirib bo'lmaydi.
+          {timeLeft < 300 && (
+            <span style={{ color: '#ff4757', fontWeight: 'bold' }}>
+              {' '}Vaqt tez tugamoqda!
+            </span>
+          )}
+        </div>
       </form>
-      
-      {/* Отладочная информация */}
-      <div style={{ 
-        marginTop: '20px', 
-        fontSize: '12px', 
-        color: '#787878',
-        textAlign: 'center',
-        fontFamily: 'monospace',
-        backgroundColor: '#f5f5f5',
-        padding: '10px',
-        borderRadius: '8px'
-      }}>
-        <div><strong>📊 Joriy savol:</strong> {currentQuestion + 1} ({isClosedQuestion ? 'Yopiq' : 'Ochiq'})</div>
-        <div><strong>📈 Progress:</strong> {answeredCount}/{totalQuestions} ({progressPercentage}%)</div>
-        <div style={{ marginTop: '5px', fontSize: '10px' }}>
-          <strong>Javoblar:</strong> {JSON.stringify(answers)}
+
+      {/* Резервная копия информации */}
+      <div className="backup-info">
+        <div className="backup-icon">💾</div>
+        <div className="backup-text">
+          Javoblaringiz avtomatik ravishda saqlanib turiladi.
+          Internet uzilishida, sahifani qayta ochganingizda davom ettirishingiz mumkin.
         </div>
       </div>
     </div>

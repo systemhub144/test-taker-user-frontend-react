@@ -1,71 +1,164 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ErrorDisplay from '../components/ErrorDisplay';
+import './TestCodePage.css';
 
-const TestCodePage = ({ onSubmit, loading }) => {
+const TestCodePage = ({ userId, onSubmit, loading, error, onErrorDismiss }) => {
   const [testCode, setTestCode] = useState('');
-  const [error, setError] = useState('');
+  const [localError, setLocalError] = useState(null);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError('');
+  // Фокус на поле ввода при загрузке
+  useEffect(() => {
+    const input = document.getElementById('testCodeInput');
+    if (input) {
+      setTimeout(() => input.focus(), 100);
+    }
+  }, []);
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLocalError(null);
+    
+    // Валидация
     if (!testCode.trim()) {
-      setError('Iltimos, test kodini kiriting');
+      setLocalError({
+        type: 'warning',
+        title: 'Maydon bo\'sh',
+        message: 'Iltimos, test kodini kiriting',
+        details: 'Test kodi adminstrator tomonidan beriladi'
+      });
       return;
     }
-
-    // Генерируем временный user_id для разработки
-    const userId = 'dev_user_' + Math.random().toString(36).substr(2, 9);
     
-    onSubmit(testCode, userId);
+    if (!userId) {
+      setLocalError({
+        type: 'error',
+        title: 'User ID topilmadi',
+        message: 'Sahifaga noto\'g\'ri kirilgan',
+        details: 'Iltimos, sahifaga ?user_id=123456 formatida kirishni tekshiring'
+      });
+      return;
+    }
     
-    // Переход на страницу с данными пользователя
-    setTimeout(() => {
+    // Вызываем обработчик из App.js
+    const result = await onSubmit(testCode);
+    
+    if (result && result.success) {
+      // Переходим на страницу с данными пользователя
       navigate('/userinfo');
-    }, 500);
+    }
+  };
+
+  const handleTestCodeChange = (e) => {
+    // Очищаем ошибки при вводе
+    if (localError) setLocalError(null);
+    if (error && onErrorDismiss) onErrorDismiss();
+    
+    // Ограничиваем длину и разрешаем только нужные символы
+    const value = e.target.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '');
+    setTestCode(value.substring(0, 20));
   };
 
   return (
-    <div className="App-container">
-      <div className="Title">
-        <h1>REPETITSION TEST</h1>
-      </div>
-      
-      <div className="Subtitle">
-        <h2>Iltimos, test kodini kiriting</h2>
+    <div className="app-container">
+      <div className="header-section">
+        <h1 className="main-title">REPETITSION TEST</h1>
+        <h2 className="sub-title">Iltimos, test kodini kiriting</h2>
       </div>
 
-      {error && (
-        <div className="Error-message">
-          {error}
+      {/* Информация о пользователе */}
+      {userId && (
+        <div className="user-info-badge">
+          <div className="user-info-icon">👤</div>
+          <div className="user-info-text">
+            <div className="user-info-label">User ID</div>
+            <div className="user-info-value">{userId}</div>
+          </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ width: '100%' }}>
-        <div className="Input-group">
-          <label className="Input-title">Test kodini kiriting</label>
-          <input
-            type="text"
-            className="Input-field"
-            value={testCode}
-            onChange={(e) => setTestCode(e.target.value)}
-            placeholder="Masalan: TEST123"
-            disabled={loading}
-            autoFocus
+      {/* Отображение ошибок */}
+      {error && (
+        <div style={{ margin: '20px 0', width: '100%' }}>
+          <ErrorDisplay 
+            error={error}
+            onDismiss={onErrorDismiss}
           />
         </div>
+      )}
 
-        <div className="Button-container">
+      {localError && (
+        <div style={{ margin: '20px 0', width: '100%' }}>
+          <ErrorDisplay 
+            error={localError}
+            onDismiss={() => setLocalError(null)}
+          />
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="test-code-form">
+        <div className="input-group">
+          <label htmlFor="testCodeInput" className="input-label">
+            Test kodini kiriting
+            <span className="required-star"> *</span>
+          </label>
+          
+          <input
+            id="testCodeInput"
+            type="text"
+            className="input-field"
+            value={testCode}
+            onChange={handleTestCodeChange}
+            placeholder="Masalan: MAT-2024-001"
+            required
+            disabled={loading}
+            autoComplete="off"
+            pattern="[A-Z0-9\-_]+"
+            title="Faqat harflar, raqamlar, defis va pastgi chiziq"
+          />
+          
+          <div className="input-hint">
+            Test kodi adminstrator tomonidan beriladi. Faqat harflar, raqamlar, defis (-) va pastgi chiziq (_) ruxsat etiladi.
+          </div>
+        </div>
+
+        <div className="button-container">
           <button 
             type="submit" 
-            className="Button"
-            disabled={loading}
+            className="submit-button"
+            disabled={loading || !userId}
+            title={!userId ? "User ID topilmadi. Sahifaga ?user_id=123456 formatida kirishni tekshiring." : ""}
           >
-            {loading ? 'Tekshirilmoqda...' : 'Jo\'natish'}
+            {loading ? (
+              <>
+                <span className="button-spinner"></span>
+                <span style={{ marginLeft: '10px' }}>Tekshirilmoqda...</span>
+              </>
+            ) : (
+              'Jo\'natish'
+            )}
           </button>
+          
+          <div className="button-hint">
+            {!userId 
+              ? "⚠️ User ID topilmadi. Sahifaga to'g'ri kirishni tekshiring."
+              : "Test kodi tekshirilgandan so'ng ma'lumotlaringizni kiritishingiz kerak bo'ladi."
+            }
+          </div>
         </div>
       </form>
+
+      {/* Информационный блок */}
+      <div className="info-box">
+        <h3 className="info-box-title">📋 Test qoidalari</h3>
+        <ul className="info-box-list">
+          <li>Test kodi faqat bir marta ishlatilishi mumkin</li>
+          <li>Test vaqti chegaralangan, vaqt tugagach test avtomatik yakunlanadi</li>
+          <li>Testni yakunlaganingizdan so'ng javoblarni o'zgartirib bo'lmaydi</li>
+          <li>Internet aloqasi uzilgan taqdirda javoblaringiz saqlanib qoladi</li>
+        </ul>
+      </div>
     </div>
   );
 };

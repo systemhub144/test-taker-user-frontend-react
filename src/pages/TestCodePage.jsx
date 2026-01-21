@@ -110,16 +110,16 @@ const TestCodePage = ({ userId, onSubmit, loading, error, onErrorDismiss }) => {
             className="input-field"
             value={testCode}
             onChange={handleTestCodeChange}
-            placeholder="Masalan: MAT-2024-001"
+            placeholder="Masalan: 12345"
             required
             disabled={loading}
             autoComplete="off"
-            pattern="[A-Z0-9\-_]+"
-            title="Faqat harflar, raqamlar, defis va pastgi chiziq"
+            pattern="[0-9]+"
+            title="Faqat raqamlar"
           />
           
           <div className="input-hint">
-            Test kodi adminstrator tomonidan beriladi. Faqat harflar, raqamlar, defis (-) va pastgi chiziq (_) ruxsat etiladi.
+            Test kodi adminstrator tomonidan beriladi. Faqat raqamlar ruxsat etiladi.
           </div>
         </div>
 
@@ -128,7 +128,7 @@ const TestCodePage = ({ userId, onSubmit, loading, error, onErrorDismiss }) => {
             type="submit" 
             className="submit-button"
             disabled={loading || !userId}
-            title={!userId ? "User ID topilmadi. Sahifaga ?user_id=123456 formatida kirishni tekshiring." : ""}
+            title={!userId ? "Telegramdan kirish kerak" : ""}
           >
             {loading ? (
               <>
@@ -142,8 +142,8 @@ const TestCodePage = ({ userId, onSubmit, loading, error, onErrorDismiss }) => {
           
           <div className="button-hint">
             {!userId 
-              ? "⚠️ User ID topilmadi. Sahifaga to'g'ri kirishni tekshiring."
-              : "Test kodi tekshirilgandan so'ng ma'lumotlaringizni kiritishingiz kerak bo'ladi."
+              ? "Siz telegramdan kirmadingiz"
+              : "@JahongirAcademyBot dan kirishingiz lozim"
             }
           </div>
         </div>

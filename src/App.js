@@ -154,7 +154,7 @@ function App() {
           }
         }
       );
-      
+
       // Парсим ответ
       const data = await response.json();
       console.log('📥 API Response:', data);
@@ -163,11 +163,10 @@ function App() {
       if (!response.ok) {
         throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
       }
-      
       // Обрабатываем ответ от сервера
       if (data.allowed) {
         // Проверяем все поля ответа
-        if (!data.minutes || !data.open_questions || !data.close_questions || !data.test_name) {
+        if (!data.minutes || !data.test_name) {
           throw new Error('Invalid test data received from server');
         }
         
@@ -175,7 +174,7 @@ function App() {
         const now = new Date();
         const startTime = new Date(data.start_time);
         const endTime = new Date(data.end_time);
-        
+
         if (now < startTime) {
           setTestCheckError({
             type: 'warning',
@@ -185,7 +184,7 @@ function App() {
           });
           return;
         }
-        
+
         if (now > endTime) {
           setTestCheckError({
             type: 'error',
@@ -195,7 +194,7 @@ function App() {
           });
           return;
         }
-        
+
         if (data.is_ended) {
           setTestCheckError({
             type: 'error',
@@ -205,7 +204,7 @@ function App() {
           });
           return;
         }
-        
+
         // Сохраняем данные теста
         setTestData({
           minutes: data.minutes,

@@ -33,23 +33,23 @@ Online testing platform for Jahon Gir Academy with mathematical expression input
 - **Clean Data Submission**: Properly formatted API requests
 
 ## 📁 Project Structure
-src/
-├── components/ # Reusable components
-│ ├── ErrorDisplay.jsx
-│ └── ErrorDisplay.css
-├── pages/ # Main application pages
-│ ├── TestCodePage.jsx
-│ ├── TestCodePage.css
-│ ├── UserInfoPage.jsx
-│ ├── UserInfoPage.css
-│ ├── TestPage.jsx
-│ ├── TestPage.css
-│ ├── ResultsPage.jsx
-│ └── ResultsPage.css
-├── App.js # Main application component
-├── App.css # Global styles
-├── index.js # Application entry point
-└── index.css # Base styles
+src/<br>
+├── components/ # Reusable components<br>
+│ ├── ErrorDisplay.jsx<br>
+│ └── ErrorDisplay.css<br>
+├── pages/ # Main application pages<br>
+│ ├── TestCodePage.jsx<br>
+│ ├── TestCodePage.css<br>
+│ ├── UserInfoPage.jsx<br>
+│ ├── UserInfoPage.css<br>
+│ ├── TestPage.jsx<br>
+│ ├── TestPage.css<br>
+│ ├── ResultsPage.jsx<br>
+│ └── ResultsPage.css<br>
+├── App.js # Main application component<br>
+├── App.css # Global styles<br>
+├── index.js # Application entry point<br>
+└── index.css # Base styles<br>
 
 
 ## 🛠️ Installation & Setup
